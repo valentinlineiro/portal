@@ -8,18 +8,13 @@ export interface AppManifest {
   icon: string;
   status: 'stable' | 'wip' | 'disabled';
   backend: { pathPrefix: string } | null;
+  scriptUrl?: string;
+  elementTag?: string;
 }
 
 @Injectable({ providedIn: 'root' })
 export class AppRegistryService {
   readonly apps = resource<AppManifest[], unknown>({
-    loader: async () => {
-      const reg = await fetch('/apps/registry.json').then(r => r.json()) as { apps: string[] };
-      return Promise.all(
-        reg.apps.map(id =>
-          fetch(`/apps/${id}/manifest.json`).then(r => r.json()) as Promise<AppManifest>
-        )
-      );
-    }
+    loader: () => fetch('/api/registry').then(r => r.json()) as Promise<AppManifest[]>
   });
 }

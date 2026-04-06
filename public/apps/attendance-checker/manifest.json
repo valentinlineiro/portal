@@ -1,9 +1,0 @@
-{
-  "id": "attendance-checker",
-  "name": "attendance-checker",
-  "description": "Control de asistencia por clase",
-  "route": "attendance-checker",
-  "icon": "📋",
-  "status": "wip",
-  "backend": null
-}

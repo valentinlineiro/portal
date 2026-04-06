@@ -17,10 +17,7 @@
             "polyfills": [],
             "tsConfig": "tsconfig.app.json",
             "assets": [
-              {
-                "glob": "**/*",
-                "input": "public"
-              },
+              { "glob": "**/*", "input": "public" },
               "src/manifest.webmanifest"
             ],
             "styles": ["src/styles.css"]
@@ -52,6 +49,40 @@
             }
           },
           "defaultConfiguration": "development"
+        }
+      }
+    },
+    "exam-corrector-element": {
+      "projectType": "application",
+      "root": "../exam-corrector/frontend",
+      "sourceRoot": "../exam-corrector/frontend/src",
+      "prefix": "app",
+      "architect": {
+        "build": {
+          "builder": "@angular-devkit/build-angular:application",
+          "options": {
+            "outputPath": {
+              "base": "../exam-corrector/backend/static/element",
+              "browser": ""
+            },
+            "index": false,
+            "browser": "../exam-corrector/frontend/src/main.element.ts",
+            "polyfills": [],
+            "tsConfig": "../exam-corrector/frontend/tsconfig.json",
+            "assets": [],
+            "styles": [],
+            "outputHashing": "none"
+          },
+          "configurations": {
+            "production": {
+              "optimization": true
+            },
+            "development": {
+              "optimization": false,
+              "sourceMap": true
+            }
+          },
+          "defaultConfiguration": "production"
         }
       }
     }

@@ -1,0 +1,88 @@
+import importlib
+import os
+import sqlite3
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+
+
+class RegistryApiTests(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.db_path = str(Path(self.temp_dir.name) / "registry.sqlite3")
+        os.environ["REGISTRY_DB_PATH"] = self.db_path
+        os.environ["HEARTBEAT_TTL"] = "60"
+        self.app_module = importlib.import_module("app")
+        self.app_module = importlib.reload(self.app_module)
+        self.client = self.app_module.app.test_client()
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+        os.environ.pop("REGISTRY_DB_PATH", None)
+        os.environ.pop("HEARTBEAT_TTL", None)
+
+    def test_registry_lifecycle(self):
+        manifest = {
+            "id": "exam-corrector",
+            "name": "Exam Corrector",
+            "description": "Correccion automatica",
+            "route": "exam-corrector",
+            "icon": "X",
+            "status": "stable",
+            "backend": {"pathPrefix": "/exam-corrector/"},
+            "scriptUrl": "/apps/exam-corrector/element/main.js",
+            "elementTag": "exam-corrector-app",
+        }
+
+        res = self.client.post("/api/registry/register", json=manifest)
+        self.assertEqual(res.status_code, 200)
+
+        res = self.client.get("/api/registry")
+        self.assertEqual(res.status_code, 200)
+        payload = res.get_json()
+        self.assertEqual(len(payload), 1)
+        self.assertEqual(payload[0]["id"], manifest["id"])
+
+        res = self.client.post("/api/registry/heartbeat/exam-corrector")
+        self.assertEqual(res.status_code, 200)
+
+        res = self.client.delete("/api/registry/exam-corrector")
+        self.assertEqual(res.status_code, 200)
+
+        res = self.client.get("/api/registry")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json(), [])
+
+    def test_registry_filters_stale_entries(self):
+        os.environ["HEARTBEAT_TTL"] = "1"
+        self.app_module = importlib.reload(self.app_module)
+        self.client = self.app_module.app.test_client()
+
+        manifest = {
+            "id": "stale-app",
+            "name": "Stale App",
+            "description": "Should expire",
+            "route": "stale-app",
+            "icon": "X",
+            "status": "wip",
+            "backend": None,
+        }
+
+        res = self.client.post("/api/registry/register", json=manifest)
+        self.assertEqual(res.status_code, 200)
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("UPDATE registry SET last_heartbeat = 0 WHERE id = ?", ("stale-app",))
+
+        res = self.client.get("/api/registry")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json(), [])
+
+
+if __name__ == "__main__":
+    unittest.main()

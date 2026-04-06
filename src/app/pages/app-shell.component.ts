@@ -4,7 +4,7 @@ import {
   HostListener, inject, signal, ViewChild
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { AppRegistryService } from '../services/app-registry.service';
+import { AppManifest, AppRegistryService } from '../services/app-registry.service';
 
 @Component({
   selector: 'app-shell',
@@ -47,7 +47,7 @@ export class AppShellComponent implements AfterViewInit {
 
   async ngAfterViewInit() {
     const appId = this.route.snapshot.paramMap.get('appId')!;
-    const manifest = (this.registry.apps.value() ?? []).find(a => a.id === appId);
+    const manifest = await this.waitForManifest(appId);
 
     if (!manifest?.scriptUrl || !manifest.elementTag) {
       this.error.set(`App "${appId}" is not registered or has no frontend.`);
@@ -64,6 +64,22 @@ export class AppShellComponent implements AfterViewInit {
       if (!this.destroyed) this.error.set(`Failed to load "${appId}": ${e.message}`);
     }
     if (!this.destroyed) this.loading.set(false);
+  }
+
+  private async waitForManifest(appId: string): Promise<AppManifest | null> {
+    const timeoutMs = 6000;
+    const pollIntervalMs = 100;
+    const startedAt = Date.now();
+
+    while (!this.destroyed && Date.now() - startedAt < timeoutMs) {
+      const manifest = (this.registry.apps.value() ?? []).find(a => a.id === appId);
+      if (manifest) return manifest;
+
+      if (!this.registry.apps.isLoading()) break;
+      await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+    }
+
+    return (this.registry.apps.value() ?? []).find(a => a.id === appId) ?? null;
   }
 
   private loadScript(src: string): Promise<void> {

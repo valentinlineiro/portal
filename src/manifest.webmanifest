@@ -1,0 +1,17 @@
+{
+  "name": "Exam Corrector PWA",
+  "short_name": "Corrector",
+  "theme_color": "#0d0d0d",
+  "background_color": "#0d0d0d",
+  "display": "standalone",
+  "scope": "/",
+  "start_url": "/",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

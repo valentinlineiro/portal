@@ -121,6 +121,24 @@ class RegistryApiTests(unittest.TestCase):
         self.assertEqual(payload["manifestVersion"], 2)
         self.assertEqual(payload["supportedVersions"], [1])
 
+    def test_register_rejects_boolean_manifest_version(self):
+        manifest = {
+            "manifestVersion": True,
+            "id": "bool-version",
+            "name": "Boolean Version",
+            "description": "Boolean is not an integer for this contract",
+            "route": "bool-version",
+            "icon": "X",
+            "status": "stable",
+            "backend": None,
+        }
+
+        res = self.client.post("/api/registry/register", json=manifest)
+        self.assertEqual(res.status_code, 400)
+        payload = res.get_json()
+        self.assertEqual(payload["error"], "invalid_manifest")
+        self.assertIn("manifestVersion", payload["fieldErrors"])
+
     def test_register_rejects_invalid_manifest_fields(self):
         manifest = {
             "manifestVersion": 1,
@@ -142,6 +160,24 @@ class RegistryApiTests(unittest.TestCase):
         self.assertIn("status", payload["fieldErrors"])
         self.assertIn("backend.pathPrefix", payload["fieldErrors"])
         self.assertIn("frontend", payload["fieldErrors"])
+
+    def test_register_rejects_non_string_status(self):
+        manifest = {
+            "manifestVersion": 1,
+            "id": "status-not-string",
+            "name": "Status Not String",
+            "description": "Status should fail if not string",
+            "route": "status-not-string",
+            "icon": "X",
+            "status": [],
+            "backend": None,
+        }
+
+        res = self.client.post("/api/registry/register", json=manifest)
+        self.assertEqual(res.status_code, 400)
+        payload = res.get_json()
+        self.assertEqual(payload["error"], "invalid_manifest")
+        self.assertIn("status", payload["fieldErrors"])
 
 
 if __name__ == "__main__":

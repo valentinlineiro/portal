@@ -63,7 +63,7 @@ def _validate_manifest(data: object) -> tuple[dict, dict[str, str], int | None]:
     version = manifest.get("manifestVersion")
     if version is None:
         field_errors["manifestVersion"] = "is required"
-    elif not isinstance(version, int):
+    elif type(version) is not int:
         field_errors["manifestVersion"] = "must be an integer"
     elif version not in SUPPORTED_MANIFEST_VERSIONS:
         return {}, {}, version
@@ -79,6 +79,8 @@ def _validate_manifest(data: object) -> tuple[dict, dict[str, str], int | None]:
     status = manifest.get("status")
     if status is None:
         field_errors["status"] = "is required"
+    elif not isinstance(status, str):
+        field_errors["status"] = f"must be one of: {', '.join(sorted(ALLOWED_STATUSES))}"
     elif status not in ALLOWED_STATUSES:
         field_errors["status"] = f"must be one of: {', '.join(sorted(ALLOWED_STATUSES))}"
 

@@ -1,0 +1,129 @@
+/* Portal dark theme for Keycloak login
+   Palette: bg #0d0d0d · surface #141414 · border #2a2a2a · text #e8e8e8 · muted #888
+   Font: "Segoe UI", Arial, sans-serif  */
+
+body.login-pf {
+  background: #0d0d0d;
+  background-image: none;
+  font-family: "Segoe UI", Arial, sans-serif;
+  color: #e8e8e8;
+}
+
+/* ── Page layout ── */
+.login-pf-page {
+  background: #0d0d0d;
+}
+
+/* ── Card ── */
+.card-pf {
+  background: #141414;
+  border: 1px solid #2a2a2a;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+/* ── Header (realm name) ── */
+#kc-header {
+  background: #0d0d0d;
+}
+
+#kc-header-wrapper {
+  color: #e8e8e8;
+  text-shadow: none;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+/* ── Form labels ── */
+#kc-content label,
+.login-pf label {
+  color: #e8e8e8;
+}
+
+/* ── Inputs ── */
+.login-pf input.form-control,
+#kc-login input.form-control {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 0;
+  color: #e8e8e8;
+  box-shadow: none;
+}
+
+.login-pf input.form-control:focus,
+#kc-login input.form-control:focus {
+  border-color: #555;
+  box-shadow: none;
+  outline: none;
+}
+
+.login-pf input.form-control::placeholder {
+  color: #555;
+}
+
+/* ── Primary button ── */
+.btn-primary,
+#kc-login .btn-primary {
+  background: #e8e8e8;
+  border-color: #e8e8e8;
+  color: #0d0d0d;
+  border-radius: 0;
+  font-weight: 600;
+  box-shadow: none;
+  text-shadow: none;
+}
+
+.btn-primary:hover,
+.btn-primary:focus,
+#kc-login .btn-primary:hover {
+  background: #cccccc;
+  border-color: #cccccc;
+  color: #0d0d0d;
+}
+
+/* ── Links ── */
+a, a:visited {
+  color: #888;
+}
+
+a:hover {
+  color: #e8e8e8;
+}
+
+/* ── Alerts / errors ── */
+.alert {
+  background: #1a1a1a;
+  border-radius: 0;
+  border-left: 3px solid #555;
+  color: #e8e8e8;
+}
+
+.alert-error {
+  border-left-color: #c0392b;
+}
+
+.alert-warning {
+  border-left-color: #e67e22;
+}
+
+.alert-success {
+  border-left-color: #27ae60;
+}
+
+/* ── "Remember me" checkbox label ── */
+#rememberMe + label,
+.checkbox label {
+  color: #888;
+}
+
+/* ── Social / identity provider buttons ── */
+.zocial,
+.btn-social {
+  border-radius: 0;
+}
+
+/* ── Info text ── */
+#kc-info-message,
+.instruction {
+  color: #888;
+}

@@ -6,13 +6,15 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { AppComponent } from './app/app.component';
 import { APP_ROUTES } from './app/app.routes';
 
+const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
 bootstrapApplication(AppComponent, {
   providers: [
     provideZonelessChangeDetection(),
     provideHttpClient(),
     provideRouter(APP_ROUTES),
     provideServiceWorker('ngsw-worker.js', {
-      enabled: true,
+      enabled: !isLocalhost,
       registrationStrategy: 'registerWhenStable:30000'
     })
   ]

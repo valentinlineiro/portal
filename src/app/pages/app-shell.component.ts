@@ -12,6 +12,10 @@ import { AppManifest, AppRegistryService } from '../services/app-registry.servic
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <header class="topbar">
+      <a class="link" href="/" (click)="navigateHome($event)">Apps</a>
+      <button class="logout" type="button" (click)="logout()">Logout</button>
+    </header>
     @if (loading()) {
       <p class="status">Cargando...</p>
     }
@@ -21,6 +25,25 @@ import { AppManifest, AppRegistryService } from '../services/app-registry.servic
     <div #elementHost></div>
   `,
   styles: [`
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 24px 0;
+    }
+    .link {
+      color: #bbb;
+      text-decoration: none;
+      font-size: 14px;
+    }
+    .logout {
+      border: 1px solid #333;
+      background: #191919;
+      color: #ddd;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
     .status { padding: 24px; color: #666; font-size: 14px; }
     .error { color: #f88; }
   `]
@@ -43,6 +66,16 @@ export class AppShellComponent implements AfterViewInit {
   @HostListener('app-navigate', ['$event'])
   onNavigate(e: Event) {
     this.router.navigate([(e as CustomEvent).detail]);
+  }
+
+  navigateHome(e: Event) {
+    e.preventDefault();
+    this.router.navigate(['/']);
+  }
+
+  async logout() {
+    sessionStorage.removeItem('portal_login_attempted');
+    window.location.assign('/auth/logout?next=%2F');
   }
 
   async ngAfterViewInit() {

@@ -10,5 +10,8 @@ RUN npm run build
 
 FROM nginx:alpine
 COPY apps/portal/nginx.conf /etc/nginx/conf.d/default.conf
+COPY apps/portal/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 COPY --from=build /app/apps/portal/dist/exam-corrector-frontend/browser /usr/share/nginx/html
 EXPOSE 80
+ENTRYPOINT ["/entrypoint.sh"]

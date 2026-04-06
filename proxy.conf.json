@@ -2,5 +2,9 @@
   "/exam-corrector/": {
     "target": "http://localhost:8000",
     "secure": false
+  },
+  "/apps/exam-corrector/": {
+    "target": "http://localhost:8000",
+    "secure": false
   }
 }

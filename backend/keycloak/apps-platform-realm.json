@@ -1,0 +1,63 @@
+{
+  "realm": "apps-platform",
+  "enabled": true,
+  "displayName": "Apps Platform",
+  "loginTheme": "apps-platform",
+  "registrationAllowed": false,
+  "roles": {
+    "realm": [
+      {
+        "name": "member"
+      },
+      {
+        "name": "admin"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "portal",
+      "name": "Portal",
+      "description": "OIDC client for apps-platform portal",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "portal-dev-secret",
+      "rootUrl": "http://localhost:4200",
+      "baseUrl": "http://localhost:4200/",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:4200/*"
+      ],
+      "webOrigins": [
+        "http://localhost:4200"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:4200/*"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "demo",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Demo",
+      "lastName": "User",
+      "email": "demo@local.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "member"
+      ]
+    }
+  ]
+}

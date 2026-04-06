@@ -20,11 +20,40 @@ class RegistryApiTests(unittest.TestCase):
         self.app_module = importlib.import_module("app")
         self.app_module = importlib.reload(self.app_module)
         self.client = self.app_module.app.test_client()
+        self._login_test_user()
 
     def tearDown(self):
         self.temp_dir.cleanup()
         os.environ.pop("REGISTRY_DB_PATH", None)
         os.environ.pop("HEARTBEAT_TTL", None)
+
+    def _login_test_user(self):
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO users (id, email, name, provider, provider_sub, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "oidc:test-user",
+                    "test@example.com",
+                    "Test User",
+                    "oidc",
+                    "test-user",
+                    0,
+                    0,
+                ),
+            )
+            conn.execute("INSERT OR IGNORE INTO roles(name) VALUES ('member')")
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO user_roles (user_id, role_id)
+                SELECT ?, id FROM roles WHERE name = 'member'
+                """,
+                ("oidc:test-user",),
+            )
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = "oidc:test-user"
 
     def test_registry_lifecycle(self):
         manifest = {

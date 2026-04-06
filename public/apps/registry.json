@@ -1,4 +1,3 @@
 {
-  "_comment": "Dev fallback — overwritten at runtime in Docker by entrypoint.sh from APPS env var",
   "apps": ["exam-corrector", "attendance-checker"]
 }

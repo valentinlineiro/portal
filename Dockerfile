@@ -1,11 +1,12 @@
 FROM node:20-alpine AS build
-WORKDIR /app
-# Install at workspace root so node_modules is visible to all app source files
-COPY package.json ./
-COPY apps/portal/package.json apps/portal/package.json
-RUN npm install
-COPY . .
 WORKDIR /app/apps/portal
+
+# Install portal dependencies (includes Angular CLI)
+COPY apps/portal/package.json ./package.json
+RUN npm install
+
+# Copy portal source and build
+COPY apps/portal/ ./
 RUN npm run build
 
 FROM nginx:alpine

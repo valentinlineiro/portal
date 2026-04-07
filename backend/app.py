@@ -12,6 +12,12 @@ import requests as http_requests
 from flask import Flask, jsonify, redirect, request, session
 from flask_cors import CORS
 
+try:
+    import psycopg2
+    import psycopg2.extras
+except ImportError:
+    psycopg2 = None  # type: ignore[assignment]
+
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 app.secret_key = os.environ.get("PORTAL_SESSION_SECRET", "dev-portal-secret-change-me")
@@ -20,7 +26,17 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = os.environ.get("SESSION_COOKIE_SECURE", "false").lower() == "true"
 
 HEARTBEAT_TTL = int(os.environ.get("HEARTBEAT_TTL", "60"))
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
 REGISTRY_DB_PATH = os.environ.get("REGISTRY_DB_PATH", "/tmp/portal_registry.sqlite3")
+STATIC_APPS_FILE = os.environ.get(
+    "STATIC_APPS_FILE",
+    os.path.join(os.path.dirname(__file__), "static_apps.json"),
+)
+_PINNED_HEARTBEAT = 9_999_999_999.0  # year 2286 — static apps never expire
+
+# Schema tokens that differ between Postgres and SQLite
+_AUTO_PK = "SERIAL PRIMARY KEY" if DATABASE_URL else "INTEGER PRIMARY KEY AUTOINCREMENT"
+_FLOAT = "DOUBLE PRECISION" if DATABASE_URL else "REAL"
 SUPPORTED_MANIFEST_VERSIONS = {1}
 ALLOWED_STATUSES = {"stable", "wip", "disabled"}
 DEFAULT_ROLE = "member"
@@ -35,41 +51,97 @@ OAUTH_PROVIDER = os.environ.get("OAUTH_PROVIDER", "oidc")
 OAUTH_LOGOUT_URL = os.environ.get("OAUTH_LOGOUT_URL", "")
 
 
-def _db() -> sqlite3.Connection:
+class _PgConn:
+    """Thin wrapper around a psycopg2 connection that mimics sqlite3's interface:
+    - conn.execute(sql, params) / conn.executemany(sql, seq) return a cursor
+    - 'with _PgConn(...) as conn' commits on success, rolls back on error
+    - Row access by column name via RealDictCursor
+    - SQL placeholders: ? is translated to %s automatically
+    """
+
+    def __init__(self, pg_conn: "psycopg2.connection") -> None:
+        self._conn = pg_conn
+        self._cur = pg_conn.cursor()
+
+    def execute(self, sql: str, params: tuple = ()):
+        self._cur.execute(sql.replace("?", "%s"), params)
+        return self._cur
+
+    def executemany(self, sql: str, seq_of_params):
+        self._cur.executemany(sql.replace("?", "%s"), seq_of_params)
+        return self._cur
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, *_):
+        if exc_type:
+            self._conn.rollback()
+        else:
+            self._conn.commit()
+        self._conn.close()
+
+
+def _db():
+    if DATABASE_URL:
+        conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+        return _PgConn(conn)
     conn = sqlite3.connect(REGISTRY_DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
 
+def _ensure_db_exists() -> None:
+    """Create the portal database if it does not exist (Postgres only).
+    Must be called before _init_db() so the connection target exists."""
+    if not DATABASE_URL or not psycopg2:
+        return
+    parsed = urllib.parse.urlparse(DATABASE_URL)
+    db_name = parsed.path.lstrip("/")
+    # Connect to the maintenance database to run CREATE DATABASE
+    admin_url = DATABASE_URL.replace(parsed.path, "/postgres")
+    try:
+        conn = psycopg2.connect(admin_url)
+        conn.autocommit = True
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (db_name,))
+        if not cur.fetchone():
+            cur.execute(f'CREATE DATABASE "{db_name}"')
+        conn.close()
+    except Exception as exc:
+        # Non-fatal: _init_db() will surface a clear error if the DB is still missing
+        print(f"[portal] _ensure_db_exists warning: {exc}", flush=True)
+
+
 def _init_db() -> None:
     with _db() as conn:
         conn.execute(
-            """
+            f"""
             CREATE TABLE IF NOT EXISTS registry (
                 id TEXT PRIMARY KEY,
                 manifest_json TEXT NOT NULL,
-                last_heartbeat REAL NOT NULL
+                last_heartbeat {_FLOAT} NOT NULL
             )
             """
         )
         conn.execute(
-            """
+            f"""
             CREATE TABLE IF NOT EXISTS users (
                 id TEXT PRIMARY KEY,
                 email TEXT NOT NULL UNIQUE,
                 name TEXT NOT NULL,
                 provider TEXT NOT NULL,
                 provider_sub TEXT NOT NULL,
-                created_at REAL NOT NULL,
-                updated_at REAL NOT NULL,
+                created_at {_FLOAT} NOT NULL,
+                updated_at {_FLOAT} NOT NULL,
                 UNIQUE(provider, provider_sub)
             )
             """
         )
         conn.execute(
-            """
+            f"""
             CREATE TABLE IF NOT EXISTS roles (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id {_AUTO_PK},
                 name TEXT NOT NULL UNIQUE
             )
             """
@@ -86,47 +158,66 @@ def _init_db() -> None:
             """
         )
         conn.execute(
-            """
+            f"""
             CREATE TABLE IF NOT EXISTS apps (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
                 visibility TEXT NOT NULL DEFAULT 'internal',
                 status TEXT NOT NULL DEFAULT 'stable',
-                created_at REAL NOT NULL,
-                updated_at REAL NOT NULL
+                created_at {_FLOAT} NOT NULL,
+                updated_at {_FLOAT} NOT NULL
             )
             """
         )
         conn.execute(
-            """
+            f"""
             CREATE TABLE IF NOT EXISTS app_permissions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id {_AUTO_PK},
                 app_id TEXT NOT NULL,
                 subject_type TEXT NOT NULL,
                 subject_id TEXT NOT NULL,
                 permission TEXT NOT NULL,
-                created_at REAL NOT NULL,
+                created_at {_FLOAT} NOT NULL,
                 UNIQUE(app_id, subject_type, subject_id, permission)
             )
             """
         )
         conn.execute(
-            """
+            f"""
             CREATE TABLE IF NOT EXISTS audit_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id {_AUTO_PK},
                 user_id TEXT,
                 action TEXT NOT NULL,
                 target_type TEXT,
                 target_id TEXT,
                 metadata_json TEXT NOT NULL,
-                created_at REAL NOT NULL
+                created_at {_FLOAT} NOT NULL
             )
             """
         )
         conn.executemany(
-            "INSERT OR IGNORE INTO roles(name) VALUES (?)",
+            "INSERT INTO roles(name) VALUES (?) ON CONFLICT(name) DO NOTHING",
             [("owner",), ("admin",), ("member",), ("viewer",)],
         )
+
+
+def _init_static_apps() -> None:
+    if not os.path.exists(STATIC_APPS_FILE):
+        return
+    with open(STATIC_APPS_FILE) as f:
+        manifests = json.load(f)
+    with _db() as conn:
+        for manifest in manifests:
+            conn.execute(
+                """
+                INSERT INTO registry (id, manifest_json, last_heartbeat)
+                VALUES (?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    manifest_json = excluded.manifest_json,
+                    last_heartbeat = excluded.last_heartbeat
+                """,
+                (manifest["id"], json.dumps(manifest), _PINNED_HEARTBEAT),
+            )
 
 
 def _active() -> list[dict]:
@@ -210,8 +301,9 @@ def _upsert_user(email: str, name: str, provider: str, provider_sub: str) -> str
         )
         conn.execute(
             """
-            INSERT OR IGNORE INTO user_roles (user_id, role_id)
+            INSERT INTO user_roles (user_id, role_id)
             SELECT ?, id FROM roles WHERE name = ?
+            ON CONFLICT DO NOTHING
             """,
             (user_id, DEFAULT_ROLE),
         )
@@ -524,8 +616,12 @@ def auth_me():
 
 
 if __name__ == "__main__":
+    _ensure_db_exists()
     _init_db()
+    _init_static_apps()
     app.run(host="0.0.0.0", port=5000)
 
 
+_ensure_db_exists()
 _init_db()
+_init_static_apps()

@@ -1,0 +1,14 @@
+[
+  {
+    "manifestVersion": 1,
+    "id": "attendance-checker",
+    "name": "attendance-checker",
+    "description": "Registro de asistencia por clase y exportación de reportes",
+    "route": "attendance-checker",
+    "icon": "📋",
+    "status": "wip",
+    "backend": null,
+    "scriptUrl": "/apps/attendance-checker/element/main.js",
+    "elementTag": "attendance-checker-app"
+  }
+]

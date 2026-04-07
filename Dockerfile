@@ -1,15 +1,19 @@
-FROM node:20-alpine AS build
-WORKDIR /app/apps/portal
+FROM node:20-alpine AS attendance-build
+WORKDIR /app/apps/attendance-checker
+COPY apps/attendance-checker/package.json ./
+RUN npm install
+COPY apps/attendance-checker/ ./
+RUN npm run build
 
-# Install portal dependencies (includes Angular CLI)
+FROM node:20-alpine AS portal-build
+WORKDIR /app/apps/portal
 COPY apps/portal/package.json ./package.json
 RUN npm install
-
-# Copy portal source and build
 COPY apps/portal/ ./
+COPY --from=attendance-build /app/apps/attendance-checker/dist/element/ public/apps/attendance-checker/element/
 RUN npm run build
 
 FROM nginx:alpine
 COPY apps/portal/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/apps/portal/dist/exam-corrector-frontend/browser /usr/share/nginx/html
+COPY --from=portal-build /app/apps/portal/dist/exam-corrector-frontend/browser /usr/share/nginx/html
 EXPOSE 80

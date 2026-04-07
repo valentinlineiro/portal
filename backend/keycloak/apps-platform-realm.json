@@ -23,20 +23,22 @@
       "protocol": "openid-connect",
       "publicClient": false,
       "secret": "portal-dev-secret",
-      "rootUrl": "http://localhost:4200",
-      "baseUrl": "http://localhost:4200/",
+      "rootUrl": "https://localhost",
+      "baseUrl": "https://localhost/",
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": [
+        "https://localhost/*",
         "http://localhost:4200/*"
       ],
       "webOrigins": [
+        "https://localhost",
         "http://localhost:4200"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:4200/*"
+        "post.logout.redirect.uris": "https://localhost/*"
       }
     }
   ],

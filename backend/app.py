@@ -49,6 +49,7 @@ OAUTH_SCOPE = os.environ.get("OAUTH_SCOPE", "openid profile email")
 OAUTH_REDIRECT_URI = os.environ.get("OAUTH_REDIRECT_URI", "")
 OAUTH_PROVIDER = os.environ.get("OAUTH_PROVIDER", "oidc")
 OAUTH_LOGOUT_URL = os.environ.get("OAUTH_LOGOUT_URL", "")
+OAUTH_VERIFY_SSL = os.environ.get("OAUTH_VERIFY_SSL", "true").lower() == "true"
 
 
 class _PgConn:
@@ -115,90 +116,98 @@ def _ensure_db_exists() -> None:
 
 def _init_db() -> None:
     with _db() as conn:
-        conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS registry (
-                id TEXT PRIMARY KEY,
-                manifest_json TEXT NOT NULL,
-                last_heartbeat {_FLOAT} NOT NULL
+        try:
+            conn.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS registry (
+                    id TEXT PRIMARY KEY,
+                    manifest_json TEXT NOT NULL,
+                    last_heartbeat {_FLOAT} NOT NULL
+                )
+                """
             )
-            """
-        )
-        conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS users (
-                id TEXT PRIMARY KEY,
-                email TEXT NOT NULL UNIQUE,
-                name TEXT NOT NULL,
-                provider TEXT NOT NULL,
-                provider_sub TEXT NOT NULL,
-                created_at {_FLOAT} NOT NULL,
-                updated_at {_FLOAT} NOT NULL,
-                UNIQUE(provider, provider_sub)
+            conn.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS users (
+                    id TEXT PRIMARY KEY,
+                    email TEXT NOT NULL UNIQUE,
+                    name TEXT NOT NULL,
+                    provider TEXT NOT NULL,
+                    provider_sub TEXT NOT NULL,
+                    created_at {_FLOAT} NOT NULL,
+                    updated_at {_FLOAT} NOT NULL,
+                    UNIQUE(provider, provider_sub)
+                )
+                """
             )
-            """
-        )
-        conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS roles (
-                id {_AUTO_PK},
-                name TEXT NOT NULL UNIQUE
+            conn.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS roles (
+                    id {_AUTO_PK},
+                    name TEXT NOT NULL UNIQUE
+                )
+                """
             )
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS user_roles (
-                user_id TEXT NOT NULL,
-                role_id INTEGER NOT NULL,
-                PRIMARY KEY(user_id, role_id),
-                FOREIGN KEY(user_id) REFERENCES users(id),
-                FOREIGN KEY(role_id) REFERENCES roles(id)
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS user_roles (
+                    user_id TEXT NOT NULL,
+                    role_id INTEGER NOT NULL,
+                    PRIMARY KEY(user_id, role_id),
+                    FOREIGN KEY(user_id) REFERENCES users(id),
+                    FOREIGN KEY(role_id) REFERENCES roles(id)
+                )
+                """
             )
-            """
-        )
-        conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS apps (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                visibility TEXT NOT NULL DEFAULT 'internal',
-                status TEXT NOT NULL DEFAULT 'stable',
-                created_at {_FLOAT} NOT NULL,
-                updated_at {_FLOAT} NOT NULL
+            conn.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS apps (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    visibility TEXT NOT NULL DEFAULT 'internal',
+                    status TEXT NOT NULL DEFAULT 'stable',
+                    created_at {_FLOAT} NOT NULL,
+                    updated_at {_FLOAT} NOT NULL
+                )
+                """
             )
-            """
-        )
-        conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS app_permissions (
-                id {_AUTO_PK},
-                app_id TEXT NOT NULL,
-                subject_type TEXT NOT NULL,
-                subject_id TEXT NOT NULL,
-                permission TEXT NOT NULL,
-                created_at {_FLOAT} NOT NULL,
-                UNIQUE(app_id, subject_type, subject_id, permission)
+            conn.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS app_permissions (
+                    id {_AUTO_PK},
+                    app_id TEXT NOT NULL,
+                    subject_type TEXT NOT NULL,
+                    subject_id TEXT NOT NULL,
+                    permission TEXT NOT NULL,
+                    created_at {_FLOAT} NOT NULL,
+                    UNIQUE(app_id, subject_type, subject_id, permission)
+                )
+                """
             )
-            """
-        )
-        conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS audit_logs (
-                id {_AUTO_PK},
-                user_id TEXT,
-                action TEXT NOT NULL,
-                target_type TEXT,
-                target_id TEXT,
-                metadata_json TEXT NOT NULL,
-                created_at {_FLOAT} NOT NULL
+            conn.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS audit_logs (
+                    id {_AUTO_PK},
+                    user_id TEXT,
+                    action TEXT NOT NULL,
+                    target_type TEXT,
+                    target_id TEXT,
+                    metadata_json TEXT NOT NULL,
+                    created_at {_FLOAT} NOT NULL
+                )
+                """
             )
-            """
-        )
-        conn.executemany(
-            "INSERT INTO roles(name) VALUES (?) ON CONFLICT(name) DO NOTHING",
-            [("owner",), ("admin",), ("member",), ("viewer",)],
-        )
+            conn.executemany(
+                "INSERT INTO roles(name) VALUES (?) ON CONFLICT(name) DO NOTHING",
+                [("owner",), ("admin",), ("member",), ("viewer",)],
+            )
+        except Exception as e:
+            # If the error is about a duplicate object, we can ignore it
+            # (PostgreSQL sometimes throws this even with IF NOT EXISTS for complex schemas)
+            if "already exists" in str(e).lower():
+                pass
+            else:
+                raise e
 
 
 def _init_static_apps() -> None:
@@ -542,6 +551,7 @@ def auth_callback():
             "code_verifier": code_verifier,
         },
         timeout=10,
+        verify=OAUTH_VERIFY_SSL,
     )
     if not token_response.ok:
         return jsonify({"error": "token_exchange_failed"}), 502
@@ -555,6 +565,7 @@ def auth_callback():
         OAUTH_USERINFO_URL,
         headers={"Authorization": f"Bearer {access_token}"},
         timeout=10,
+        verify=OAUTH_VERIFY_SSL,
     )
     if not userinfo_response.ok:
         return jsonify({"error": "userinfo_fetch_failed"}), 502
